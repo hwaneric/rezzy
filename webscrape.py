@@ -41,7 +41,6 @@ RESTAURANT_NAME = "House of Prime Rib"
 def check_availability(guests, date, time_of_day):
   try:
     # Set up the Chrome driver
-
     chrome_options = ChromeOptions()
     chrome_options.add_argument("--headless=new")
     # chrome_options.add_argument("window-size=1920,1080")
@@ -74,9 +73,7 @@ def check_availability(guests, date, time_of_day):
     print("Chrome driver started")
 
     driver.get(OPENTABLE_URL)
-    # time.sleep(5)
-    # driver.save_screenshot("screenshot.png")
-    # time.sleep(10000)
+
 
     print("driver got url")
 
@@ -108,13 +105,14 @@ def check_availability(guests, date, time_of_day):
           times.append(time_text)
 
       send_emails(RESTAURANT_NAME, f"{date["month"]}/{date["day"]}/{date["year"]}", times, guests, OPENTABLE_URL)
-      raise
+      
     finally:
       driver.quit()
   except Exception as e:
     print(f"Error: {e}")
     traceback_str = traceback.format_exc()
     send_error_notification(e, traceback_str)
+    raise
 
 
 
