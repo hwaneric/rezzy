@@ -3,15 +3,7 @@ from webscrape import check_availability
 
 
 
-# rezzy_date values must all be integers. Do not add padding zeros. Year must be 4 digits
-rezzy_date = {"day": 29, "month": 10, "year": 2024}
-# rezzy_time must be a string in 24-hour format. Include padding zeros
-rezzy_time = "17:00"
-
-
-
           
-  
 
 dates = [{"day": 9, "month": 8, "year": 2024, "time": "17:00"}, {"day": 12, "month": 8, "year": 2024, "time": "17:00"}]
 guests = 4 
