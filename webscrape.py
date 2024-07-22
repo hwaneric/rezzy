@@ -41,10 +41,8 @@ RESTAURANT_NAME = "House of Prime Rib"
 def check_availability(guests, date, time_of_day):
   try:
     # Set up the Chrome driver
-
     chrome_options = ChromeOptions()
     chrome_options.add_argument("--headless=new")
-    # chrome_options.add_argument("window-size=1920,1080")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
@@ -65,7 +63,6 @@ def check_availability(guests, date, time_of_day):
       service_log_path="/tmp/chromedriver.log"
     )
 
-
     print("Starting Chrome driver")
     driver = driver = webdriver.Chrome(
       service=service,
@@ -74,10 +71,6 @@ def check_availability(guests, date, time_of_day):
     print("Chrome driver started")
 
     driver.get(OPENTABLE_URL)
-    # time.sleep(5)
-    # driver.save_screenshot("screenshot.png")
-    # time.sleep(10000)
-
     print("driver got url")
 
     select_party_size(driver, guests)
@@ -120,9 +113,6 @@ def check_availability(guests, date, time_of_day):
 
 def select_party_size(driver, guests):
   party_size_select = driver.find_element(By.XPATH, '//select[@aria-label="Party size"]')
-  # party_size_select = WebDriverWait(driver, 10).until(
-  #   EC.presence_of_element_located((By.XPATH, '//select[@aria-label="Party size"]'))
-  # ) 
   party_size = Select(party_size_select)
   party_size.select_by_value(str(guests))
   
