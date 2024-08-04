@@ -1,16 +1,10 @@
 from time import sleep
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import datetime
 from emails import send_emails, send_error_notification
-import traceback
-from tempfile import mkdtemp
-import requests
 from datetime_helpers import convert_to_datetime, datetime_to_string, add_time, round_to_nearest_half_hour
 
 
@@ -35,7 +29,7 @@ number_to_month = {
 # rezzy_time = "17:00"
 
 BASE_OPENTABLE_URL = 'https://www.opentable.com'
-RESTAURANT_NAME = "House of Prime Rib"
+# RESTAURANT_NAME = "House of Prime Rib"
 
 
 
@@ -43,7 +37,6 @@ RESTAURANT_NAME = "House of Prime Rib"
 def reservation_handler(driver, guests, date, opentable_url, ideal_time, earliest_time, latest_time, phone_number):
   driver.get(opentable_url)
 
-  # TODO Add check for if the reestaurant is even with OpenTable (e.g. Ruka) or some other error 
   select_party_size(driver, guests)
   select_date(driver, date)
   times = get_valid_times(driver, earliest_time, latest_time)
@@ -91,6 +84,9 @@ def make_reservation(driver, time, phone_number, opentable_url):
     for field in required_fields:
       if not field.is_selected():
         driver.execute_script("arguments[0].click();", field)
+      
+    
+    # TODO: Click button to make reservation!!!
     return True
   except Exception as e:
     print(e)
@@ -163,8 +159,19 @@ def get_opentable_url(driver, restaurant_name, geolocation):
   submit_btn = driver.find_element(By.XPATH, "//button[text()=\"Let’s go\"]")
   submit_btn.click()
 
-  # TODO: Add check for if restaurant is even found. Return empty or False if not found
-  restaurant_link = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "qCITanV81-Y-")))
+  try:
+    restaurant_link = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "qCITanV81-Y-")))
+    not_on_opentable_label = driver.find_elements(By.XPATH, "//p[contains(text(), 'Unfortunately, this restaurant is not on the OpenTable reservation network. To see if they take reservations and have availability, you will need to call the restaurant directly or visit their website.')]")
+    
+    if not_on_opentable_label:
+      print("Restaurant not on OpenTable")
+      # Should terminate AWS trigger if necessary here
+      return ""
+
+  except Exception as e:
+    print(e)
+    return ""
+  
   return restaurant_link.get_attribute("href")
 
 
