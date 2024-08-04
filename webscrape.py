@@ -51,6 +51,7 @@ def reservation_handler(driver, guests, date, opentable_url, ideal_time, earlies
 
   for time in times:
     if make_reservation(driver, time, phone_number, opentable_url):
+      print("reservation made")
       return {"status": 200, "message": "Reservations made!", "reservation_success": True}
   
   # send_emails(RESTAURANT_NAME, f"{date["month"]}/{date["day"]}/{date["year"]}", times, guests, opentable_url)
@@ -62,7 +63,7 @@ def reservation_handler(driver, guests, date, opentable_url, ideal_time, earlies
 
 def make_reservation(driver, time, phone_number, opentable_url):
   try:
-    # Select time so 
+    # Select time to ensure reservation time shows on screen
     select_time(driver, time)
     print(datetime_to_string(time))
     wait = WebDriverWait(driver, 10)
@@ -71,7 +72,16 @@ def make_reservation(driver, time, phone_number, opentable_url):
     )
     button.click()
 
-    phone_input = driver.find_element(By.XPATH, "//input[@aria-label='Phone number']")
+    seating_options_header = driver.find_elements(By.XPATH, "//h1[contains(text(), 'Seating options')]")
+    if seating_options_header:
+      standard_seating_button = driver.find_element(By.CSS_SELECTOR, 'button[data-test="seatingOption-default-button"]')
+      standard_seating_button.click()
+
+    
+    phone_input = wait.until(
+      EC.visibility_of_element_located((By.XPATH, "//input[@aria-label='Phone number']"))
+    )
+    # driver.find_element(By.XPATH, "//input[@aria-label='Phone number']")
     phone_input.send_keys(phone_number)
 
     email_opt_in_checkbox = driver.find_element(By.ID, "optInEmailRestaurant")
@@ -84,7 +94,7 @@ def make_reservation(driver, time, phone_number, opentable_url):
     for field in required_fields:
       if not field.is_selected():
         driver.execute_script("arguments[0].click();", field)
-      
+        
     
     # TODO: Click button to make reservation!!!
     return True
@@ -108,7 +118,7 @@ def get_valid_times(driver, earliest_time, latest_time):
   times = []
 
   try:
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 7)
 
     # Will raise exception if no reservation available message does not appear after 10 seconds
     no_reservations_msg = wait.until(
@@ -120,9 +130,10 @@ def get_valid_times(driver, earliest_time, latest_time):
 
     # Identify which times are available and in time range
     for button in time_buttons:
-      time_text = button.text
+      time_text = button.text.rstrip("*")
 
       if time_text:
+        print(time_text)
         dt = convert_to_datetime(time_text)
 
         if earliest_time <= dt <= latest_time:
@@ -141,7 +152,7 @@ def get_valid_times(driver, earliest_time, latest_time):
 def get_opentable_url(driver, restaurant_name, geolocation):
   # Set location
   driver.execute_cdp_cmd("Emulation.setGeolocationOverride", geolocation)
-  sleep(0.3)
+  sleep(0.3) # Sleep to ensure location is set before loading page
   driver.get(BASE_OPENTABLE_URL)
   wait = WebDriverWait(driver, 10)
 
@@ -222,7 +233,17 @@ def select_date(driver, date):
 def select_time(driver, time_of_day):
   time_of_day = round_to_nearest_half_hour(time_of_day)
   time_of_day = datetime_to_string(time_of_day)
-  reservation_time_select = driver.find_element(By.XPATH, '//select[@aria-label="Time selector"]')
+
+  wait = WebDriverWait(driver, 10)
+  reservation_time_select = wait.until(
+    EC.presence_of_element_located((By.XPATH, '//select[@aria-label="Time selector"]'))
+  )
+
+  # Wait until time buttons appear before selecting new time to ensure correct time are loaded
+  _ = wait.until(
+      EC.visibility_of_element_located((By.XPATH, f"//button[text()='Notify me']"))
+    )
+
   reservation_time = Select(reservation_time_select)
   reservation_time.select_by_visible_text(time_of_day)
   
