@@ -1,20 +1,13 @@
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.chrome.service import Service
+from time import sleep
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import datetime
 from emails import send_emails, send_error_notification
-import traceback
-from tempfile import mkdtemp
+from datetime_helpers import convert_to_datetime, datetime_to_string, add_time, round_to_nearest_half_hour
 
 
-
-
-guests = 4
 number_to_month = {
   1: "January",
   2: "February",
@@ -31,114 +24,188 @@ number_to_month = {
 }
 
 # rezzy_date values must all be integers. Do not add padding zeros. Year must be 4 digits
-rezzy_date = {"day": 29, "month": 10, "year": 2024}
+# rezzy_date = {"day": 29, "month": 10, "year": 2024}
 # rezzy_time must be a string in 24-hour format. Include padding zeros
-rezzy_time = "17:00"
+# rezzy_time = "17:00"
 
-OPENTABLE_URL = 'https://www.opentable.com/restref/client/?restref=1779&corrid=05f5a50c-5839-4a47-85f8-9addf78bef1e'
-RESTAURANT_NAME = "House of Prime Rib"
+BASE_OPENTABLE_URL = 'https://www.opentable.com'
+# RESTAURANT_NAME = "House of Prime Rib"
 
-def check_availability(guests, date, time_of_day):
+
+
+
+def reservation_handler(driver, guests, date, opentable_url, ideal_time, earliest_time, latest_time, phone_number):
+  driver.get(opentable_url)
+
+  select_party_size(driver, guests)
+  select_date(driver, date)
+  times = get_valid_times(driver, earliest_time, latest_time)
+
+  if not times:
+    print("No reservations available")
+    return {"status": 200, "message": "No reservations available", "reservation_success": False}
+
+  # Sort times by proximity to ideal time
+  times.sort(key=lambda x: abs(x - ideal_time))
+  print(times)
+
+  for time in times:
+    if make_reservation(driver, time, phone_number, opentable_url):
+      return {"status": 200, "message": "Reservations made!", "reservation_success": True}
+  
+  # send_emails(RESTAURANT_NAME, f"{date["month"]}/{date["day"]}/{date["year"]}", times, guests, opentable_url)
+  return {"status": 200, "message": "No reservations available", "reservation_success": False}
+
+
+
+
+
+def make_reservation(driver, time, phone_number, opentable_url):
   try:
-    # Set up the Chrome driver
-    chrome_options = ChromeOptions()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--disable-dev-tools")
-    chrome_options.add_argument("--no-zygote")
-    chrome_options.add_argument("--single-process")
-    chrome_options.add_argument(f"--user-data-dir={mkdtemp()}")
-    chrome_options.add_argument(f"--data-path={mkdtemp()}")
-    chrome_options.add_argument(f"--disk-cache-dir={mkdtemp()}")
-    chrome_options.add_argument("--remote-debugging-pipe")
-    chrome_options.add_argument("--verbose")
-    chrome_options.add_argument("--log-path=/tmp")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    chrome_options.binary_location = "/opt/chrome/chrome-linux64/chrome"
-
-    service = Service(
-      executable_path="/opt/chrome-driver/chromedriver-linux64/chromedriver",
-      service_log_path="/tmp/chromedriver.log"
+    # Select time so 
+    select_time(driver, time)
+    print(datetime_to_string(time))
+    wait = WebDriverWait(driver, 10)
+    button = wait.until(
+      EC.visibility_of_element_located((By.XPATH, f"//a[contains(@class, 'vFX9z2MNdGY-') and text()='{datetime_to_string(time)}']"))
     )
+    button.click()
 
-    print("Starting Chrome driver")
-    driver = driver = webdriver.Chrome(
-      service=service,
-      options=chrome_options
-    )
-    print("Chrome driver started")
+    phone_input = driver.find_element(By.XPATH, "//input[@aria-label='Phone number']")
+    phone_input.send_keys(phone_number)
 
-    driver.get(OPENTABLE_URL)
-    print("driver got url")
+    email_opt_in_checkbox = driver.find_element(By.ID, "optInEmailRestaurant")
 
-    select_party_size(driver, guests)
-    select_date(driver, date)
-    select_reservation_time(driver, time_of_day)
-
-    submit_button = driver.find_element(By.CSS_SELECTOR, 'button[data-auto="findATableButton"]')
-    submit_button.click()
-
-    try:
-      wait = WebDriverWait(driver, 10)
-
-      # Will raise exception if no reservation available message does not appear after 10 seconds
-      no_reservations_msg = wait.until(
-        EC.visibility_of_element_located((By.XPATH, '//p[@role="alert" and starts-with(text(),"At the moment, there’s no online availability within 2.5 hours of")]'))
-      )
-      print(f"No reservation available on {date} within 2.5 hours of {time_of_day}")
-
-    except:
-      # Locate all button elements within the time slots list
-      time_buttons = driver.find_elements(By.XPATH, '//ul[@data-auto="timeSlots"]//button[@role="link"]')
-
-      # Identify which times are available
-      times = []
-      for button in time_buttons:
-        time_text = button.text
-        if time_text:
-          times.append(time_text)
-
-      send_emails(RESTAURANT_NAME, f"{date["month"]}/{date["day"]}/{date["year"]}", times, guests, OPENTABLE_URL)
+    driver.execute_script("arguments[0].scrollIntoView();", email_opt_in_checkbox)
+    if email_opt_in_checkbox.is_selected():
+      driver.execute_script("arguments[0].click();", email_opt_in_checkbox)
+    
+    required_fields = driver.find_elements(By.CLASS_NAME, "RPdaddsMSi4-")
+    for field in required_fields:
+      if not field.is_selected():
+        driver.execute_script("arguments[0].click();", field)
       
-    finally:
-      driver.quit()
+    
+    # TODO: Click button to make reservation!!!
+    return True
   except Exception as e:
-    print(f"Error: {e}")
-    traceback_str = traceback.format_exc()
-    send_error_notification(e, traceback_str)
-    raise
+    print(e)
+    if driver.current_url != opentable_url:
+      driver.back()
+
+    return False
+ 
+
+
+
+
+
+  
+
+def get_valid_times(driver, earliest_time, latest_time):
+  # Pick time 2.5 hours after earliest time to optimally cover reservation window
+  select_time(driver, add_time(earliest_time, hours=2.5))
+  times = []
+
+  try:
+    wait = WebDriverWait(driver, 10)
+
+    # Will raise exception if no reservation available message does not appear after 10 seconds
+    no_reservations_msg = wait.until(
+      EC.visibility_of_element_located((By.XPATH, '//span[starts-with(text(),"At the moment, there’s no online availability within 2.5 hours of")]'))
+    )
+  
+  except:
+    time_buttons = driver.find_elements(By.CLASS_NAME, 'vFX9z2MNdGY-')
+
+    # Identify which times are available and in time range
+    for button in time_buttons:
+      time_text = button.text
+
+      if time_text:
+        dt = convert_to_datetime(time_text)
+
+        if earliest_time <= dt <= latest_time:
+          times.append(dt)
+
+  finally:
+    # Time window not fully covered in 5 hour range. Add another 5 hours to the range
+    if add_time(earliest_time, hours=5) < latest_time:
+      times.append.extend(get_valid_times(), add_time(earliest_time, hours=5), latest_time)
+
+  return times
+
+
+
+
+def get_opentable_url(driver, restaurant_name, geolocation):
+  # Set location
+  driver.execute_cdp_cmd("Emulation.setGeolocationOverride", geolocation)
+  sleep(0.3)
+  driver.get(BASE_OPENTABLE_URL)
+  wait = WebDriverWait(driver, 10)
+
+  # Update OpenTable location to user location
+  location_setter = wait.until(EC.presence_of_element_located((By.XPATH, "//div[text()='Get current location']")))
+  location_setter.click()
+  driver.refresh()
+
+
+  # Navigate to restaurant page
+  restaurant_name_input = wait.until(EC.presence_of_element_located((By.ID, "home-page-autocomplete-input")))
+  restaurant_name_input.clear()
+  restaurant_name_input.send_keys(restaurant_name)
+
+  submit_btn = driver.find_element(By.XPATH, "//button[text()=\"Let’s go\"]")
+  submit_btn.click()
+
+  try:
+    restaurant_link = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "qCITanV81-Y-")))
+    not_on_opentable_label = driver.find_elements(By.XPATH, "//p[contains(text(), 'Unfortunately, this restaurant is not on the OpenTable reservation network. To see if they take reservations and have availability, you will need to call the restaurant directly or visit their website.')]")
+    
+    if not_on_opentable_label:
+      print("Restaurant not on OpenTable")
+      # Should terminate AWS trigger if necessary here
+      return ""
+
+  except Exception as e:
+    print(e)
+    return ""
+  
+  return restaurant_link.get_attribute("href")
+
 
 
 
 def select_party_size(driver, guests):
-  party_size_select = driver.find_element(By.XPATH, '//select[@aria-label="Party size"]')
+  # Resize window to make elements visible
+  driver.set_window_size(750, 750)
+
+  party_size_select = driver.find_element(By.XPATH, '//select[@aria-label="Party size selector"]')
   party_size = Select(party_size_select)
   party_size.select_by_value(str(guests))
   
 
 
 def select_date(driver, date):
-  calendar = driver.find_element(By.XPATH, '//input[@data-auto="calendarDatePicker"]')
+  calendar = driver.find_element(By.XPATH, "//div[@id='restProfileMainContentDtpDayPicker']")
   calendar.click()
-  WebDriverWait(driver, 10).until(
-    EC.visibility_of_element_located((By.CLASS_NAME, 'react-datepicker'))
-  )
-
+  driver.save_screenshot("screenshot.png")
+  
   month_name = number_to_month[date["month"]]
 
   # Navigate to correct month
   while True:
 
-    month_label = driver.find_element(By.CLASS_NAME, "react-datepicker__current-month").text
+    month_label = driver.find_element(By.ID, "react-day-picker-1").text # I believe this is stable? But be aware that the number at the end of the id may change
+    
     target_month = month_name + " " + str(date["year"])
     if month_label == target_month:
       break
 
-    next_button = driver.find_element(By.CSS_SELECTOR, 'button.react-datepicker__navigation.react-datepicker__navigation--next')
+    next_button = driver.find_element(By.NAME, 'next-month')
     next_button.click()
-    time.sleep(1) # Wait for next month to load on calendar
+    sleep(0.5) # Wait for next month to load on calendar
 
   # Get day of week corresponding to date
   day_of_week = datetime.date(
@@ -147,16 +214,17 @@ def select_date(driver, date):
     date["day"]
   ).strftime("%A")
 
-  ordinal_suffix = get_ordinal_suffix(date["day"])
-  aria_label = f"Choose {day_of_week}, {month_name} {str(date["day"])}{ordinal_suffix}, {str(date['year'])}"
-  day_button = driver.find_element(By.XPATH, f'//div[@aria-label="{aria_label}"]')
+  aria_label = f"{day_of_week}, {month_name} {str(date["day"])}"
+  day_button = driver.find_element(By.XPATH, f'//button[@aria-label="{aria_label}"]')
   day_button.click()
 
 
-def select_reservation_time(driver, time_of_day):
-  reservation_time_select = driver.find_element(By.XPATH, '//select[@aria-label="Reservation time"]')
+def select_time(driver, time_of_day):
+  time_of_day = round_to_nearest_half_hour(time_of_day)
+  time_of_day = datetime_to_string(time_of_day)
+  reservation_time_select = driver.find_element(By.XPATH, '//select[@aria-label="Time selector"]')
   reservation_time = Select(reservation_time_select)
-  reservation_time.select_by_value(time_of_day)
+  reservation_time.select_by_visible_text(time_of_day)
   
 
 

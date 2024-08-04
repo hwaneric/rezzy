@@ -12,6 +12,6 @@ RUN rm ./chrome-installer.sh
 # Install selenium
 RUN pip install selenium python-dotenv
 # Copy the main application code
-COPY emails.py lambda_function.py webscrape.py ./
+COPY emails.py lambda_function.py webscrape.py datetime_helpers.py ./
 # Command to run the Lambda function
 CMD [ "lambda_function.lambda_handler" ]
