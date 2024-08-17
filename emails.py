@@ -33,6 +33,9 @@ def send_emails(restaurant_name, date, times, party_size, url):
       server.login(sender_email, password)
       server.sendmail(sender_email, receiver_email, message.as_string())
       server.quit()
+
+      # Only send one email to avoid being flagged as spam
+      break
     except Exception as e:
       print(f"Error: {e}")
 

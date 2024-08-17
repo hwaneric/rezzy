@@ -20,8 +20,8 @@ def round_to_nearest_half_hour(dt):
   elif minutes < 45 or (minutes == 45 and seconds == 0):
       rounded_minutes = 30
   else:
-      rounded_minutes = 0
-      dt += datetime.timedelta(hours=1)  # Add one hour if rounding up from the second half hour
+    rounded_minutes = 0
+    dt += datetime.timedelta(hours=1)  # Add one hour if rounding up from the second half hour
 
   # Create the rounded datetime
   rounded_dt = dt.replace(minute=rounded_minutes, second=0, microsecond=0)

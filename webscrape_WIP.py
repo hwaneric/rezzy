@@ -29,11 +29,12 @@ number_to_month = {
 # rezzy_time = "17:00"
 
 BASE_OPENTABLE_URL = 'https://www.opentable.com'
+# RESTAURANT_NAME = "House of Prime Rib"
 
 
 
 
-def reservation_handler(driver, restaurant_name, guests, date, opentable_url, ideal_time, earliest_time, latest_time, phone_number):
+def reservation_handler(driver, guests, date, opentable_url, ideal_time, earliest_time, latest_time, phone_number):
   driver.get(opentable_url)
 
   select_party_size(driver, guests)
@@ -46,15 +47,15 @@ def reservation_handler(driver, restaurant_name, guests, date, opentable_url, id
 
   # Sort times by proximity to ideal time
   times.sort(key=lambda x: abs(x - ideal_time))
-  print(f"Sorted times: {times}")
+  print(times)
 
   for time in times:
     if make_reservation(driver, time, phone_number, opentable_url):
-      print("reservation can be made")
-
-      send_emails(restaurant_name, f"{date["month"]}/{date["day"]}/{date["year"]}", datetime_to_string(time), guests, opentable_url)
-      return {"status": 200, "message": "Reservations availability notification sent!", "reservation_success": True}
+      print("reservation made")
+      sleep(10000)
+      return {"status": 200, "message": "Reservations made!", "reservation_success": True}
   
+  # send_emails(RESTAURANT_NAME, f"{date["month"]}/{date["day"]}/{date["year"]}", times, guests, opentable_url)
   return {"status": 200, "message": "No reservations available", "reservation_success": False}
 
 
@@ -64,17 +65,13 @@ def reservation_handler(driver, restaurant_name, guests, date, opentable_url, id
 def make_reservation(driver, time, phone_number, opentable_url):
   try:
     # Select time to ensure reservation time shows on screen
-    print("entering select time from MAKE RESERVATION")
     select_time(driver, time)
-
-    print("select time button")
+    print(datetime_to_string(time))
     wait = WebDriverWait(driver, 10)
-    time_button = wait.until(
+    button = wait.until(
       EC.visibility_of_element_located((By.XPATH, f"//a[contains(@class, 'vFX9z2MNdGY-') and text()='{datetime_to_string(time)}']"))
     )
-    print("time button selected")
-
-    time_button.click()
+    button.click()
 
     seating_options_header = driver.find_elements(By.XPATH, "//h1[contains(text(), 'Seating options')]")
     if seating_options_header:
@@ -124,7 +121,7 @@ def get_valid_times(driver, earliest_time, latest_time):
   try:
     wait = WebDriverWait(driver, 7)
 
-    # Will raise exception if no reservation available message does not appear after 7 seconds
+    # Will raise exception if no reservation available message does not appear after 10 seconds
     no_reservations_msg = wait.until(
       EC.visibility_of_element_located((By.XPATH, '//span[starts-with(text(),"At the moment, there’s no online availability within 2.5 hours of")]'))
     )
@@ -154,52 +151,28 @@ def get_valid_times(driver, earliest_time, latest_time):
 
 
 def get_opentable_url(driver, restaurant_name, geolocation):
-  driver.set_window_size(800, 750)
-  driver.implicitly_wait(0.5)
-  print(f"Getting Opentable URL for: {restaurant_name} at geolocation: {geolocation}")
-
   # Set location
   driver.execute_cdp_cmd("Emulation.setGeolocationOverride", geolocation)
   sleep(0.3) # Sleep to ensure location is set before loading page
-  print("Geolcation set")
-
   driver.get(BASE_OPENTABLE_URL)
   wait = WebDriverWait(driver, 10)
 
   # Update OpenTable location to user location
-  print("Clicking get current location")
-  try:
-    location_setter = wait.until(EC.presence_of_element_located((By.XPATH, "//div[text()='Get current location']")))
-    location_setter.click()
-    print("Get current location clicked")
-
-    driver.refresh()
-    print("Page refreshed")
-  except:
-    print("Location could not be updated, but proceeding anyways")
-
+  location_setter = wait.until(EC.presence_of_element_located((By.XPATH, "//div[text()='Get current location']")))
+  location_setter.click()
+  driver.refresh()
 
 
   # Navigate to restaurant page
-  print("Searching for restaurant")
   restaurant_name_input = wait.until(EC.presence_of_element_located((By.ID, "home-page-autocomplete-input")))
-  # restaurant_name_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Please input a Location, Restaurant or Cuisine']")))
-
   restaurant_name_input.clear()
   restaurant_name_input.send_keys(restaurant_name)
-
-  print("Typed in restaurant name")
-
 
   submit_btn = driver.find_element(By.XPATH, "//button[text()=\"Let’s go\"]")
   submit_btn.click()
 
   try:
-    print("Searching for restaurant link")
-    # sleep(10000)
     restaurant_link = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "qCITanV81-Y-")))
-    print("Restaurant link found")
-
     not_on_opentable_label = driver.find_elements(By.XPATH, "//p[contains(text(), 'Unfortunately, this restaurant is not on the OpenTable reservation network. To see if they take reservations and have availability, you will need to call the restaurant directly or visit their website.')]")
     
     if not_on_opentable_label:
@@ -208,11 +181,9 @@ def get_opentable_url(driver, restaurant_name, geolocation):
       return ""
 
   except Exception as e:
-    print("IN EXCEPTION HANDLER FOR OPENTABLE URL")
     print(e)
     return ""
   
-  print("Opentable URL found")
   return restaurant_link.get_attribute("href")
 
 
@@ -221,17 +192,8 @@ def get_opentable_url(driver, restaurant_name, geolocation):
 def select_party_size(driver, guests):
   # Resize window to make elements visible
   driver.set_window_size(750, 750)
-  driver.implicitly_wait(0.5)
 
-
-  wait = WebDriverWait(driver, 10)
-  print("selecting party size")
-  party_size_select = wait.until(
-    EC.presence_of_element_located((By.XPATH, '//select[@aria-label="Party size selector"]'))
-  )
-  print("party size selected")
-
-  # party_size_select = driver.find_element(By.XPATH, '//select[@aria-label="Party size selector"]')
+  party_size_select = driver.find_element(By.XPATH, '//select[@aria-label="Party size selector"]')
   party_size = Select(party_size_select)
   party_size.select_by_value(str(guests))
   
@@ -262,7 +224,7 @@ def select_date(driver, date):
     date["month"], 
     date["day"]
   ).strftime("%A")
-  
+
   aria_label = f"{day_of_week}, {month_name} {str(date["day"])}"
   day_button = driver.find_element(By.XPATH, f'//button[@aria-label="{aria_label}"]')
   day_button.click()
@@ -272,12 +234,10 @@ def select_time(driver, time_of_day):
   time_of_day = round_to_nearest_half_hour(time_of_day)
   time_of_day = datetime_to_string(time_of_day)
 
-  print("Selecting time")
   wait = WebDriverWait(driver, 10)
   reservation_time_select = wait.until(
     EC.presence_of_element_located((By.XPATH, '//select[@aria-label="Time selector"]'))
   )
-  print("time select found")
 
   # Wait until time buttons appear before selecting new time to ensure correct time are loaded
   _ = wait.until(
