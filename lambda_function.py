@@ -4,6 +4,8 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from tempfile import mkdtemp
 from datetime_helpers import convert_to_datetime
+from subprocess import call
+import os
 
 
 
@@ -38,6 +40,15 @@ event = {
 
 
 def lambda_handler(event, context):
+  # Clear out tmp directory to avoid running out of space
+  if os.path.exists("/tmp"):
+    call('rm -rf /tmp/*', shell=True)
+    print("Removed files in /tmp")
+  else:
+    print("/tmp does not exist")
+
+
+
   print(event)
   driver = set_up_driver()
   dates = event.get("dates", [])
@@ -120,11 +131,13 @@ def set_up_driver():
   )
   print("Chrome driver started")
 
+  
+
     
 
   # driver = webdriver.Chrome()
   return driver
 
-lambda_handler(event, None)
+# lambda_handler(event, None)
   
   

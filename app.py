@@ -6,9 +6,14 @@ import json
 
 app = Flask(__name__)
 
+rule_name = 'trigger_lambda_every_minute'
+
 @app.route("/reserve", methods=["POST"])
 def reserve():
   data = request.json()
+
+  # Phone number not currently required because it's not used in the lambda function
+  # Email is required tho to send email
   required_fields = ["dates", "guest", "restaurant_name", "geolocation", "phone_number"]
   all_fields_present = all(field in data for field in required_fields)
 
@@ -26,7 +31,6 @@ def reserve():
   lambda_client = boto3.client('lambda')
 
   # Define the CloudWatch Event Rule
-  rule_name = 'trigger_lambda_every_minute'
   schedule_expression = 'rate(1 minute)'
 
   # Create or update the rule
@@ -57,7 +61,7 @@ def reserve():
   }
 
   target = {
-    'Id': '1',  # Identifier for the target
+    'Id': '1',  # Identifier for the target. Could maybe use email? 
     'Arn': lambda_arn,
     'Input': json.dumps(event_json)  # Pass the static JSON event
   }
@@ -123,17 +127,17 @@ def test():
 
   # Define the CloudWatch Event Rule
   rule_name = 'trigger_lambda_every_minute'
-  schedule_expression = 'rate(1 minute)'
+  # schedule_expression = 'rate(1 minute)'
 
   # Create or update the rule
-  response = client.put_rule(
-    Name=rule_name,
-    ScheduleExpression=schedule_expression,
-    State='ENABLED',
-    Description='Triggers Lambda function every minute'
-  )
+  # response = client.put_rule(
+  #   Name=rule_name,
+  #   ScheduleExpression=schedule_expression,
+  #   State='ENABLED',
+  #   Description='Triggers Lambda function every minute'
+  # )
 
-  rule_arn = response['RuleArn']
+  rule_arn = client.describe_rule(Name=rule_name).get('Arn')
 
   # Define the target for the rule
   lambda_function_name = 'rezzy_docker'
@@ -141,7 +145,7 @@ def test():
   
   # Set up event data for the trigger
   event_json = {
-    "dates": [{"day": 30, "month": 8, "year": 2024, "earliest_time": "5:00 PM", "latest_time": "7:30 PM", "ideal_time": "6:00 PM"}, {"day": 12, "month": 8, "year": 2024, "earliest_time": "11:00 AM", "latest_time": "1:00 PM", "ideal_time": "12:00 PM"}],
+    "dates": [{"day": 30, "month": 9, "year": 2024, "earliest_time": "5:00 PM", "latest_time": "7:30 PM", "ideal_time": "6:00 PM"}, {"day": 28, "month": 9, "year": 2024, "earliest_time": "11:00 AM", "latest_time": "1:00 PM", "ideal_time": "12:00 PM"}],
     "guests": 4,
     "restaurant_name": "House of Prime Rib",
     "geolocation": {
@@ -153,7 +157,7 @@ def test():
   }
 
   target = {
-    'Id': '1',  # Identifier for the target
+    'Id': '2',  # Identifier for the target
     'Arn': lambda_arn,
     'Input': json.dumps(event_json)  # Pass the static JSON event
   }
@@ -164,18 +168,28 @@ def test():
     Targets=[target]
   )
 
-  # Add permission for the CloudWatch Events service to invoke your Lambda function
-  lambda_client.add_permission(
-    FunctionName=lambda_function_name,
-    StatementId=f'{rule_name}-permission',
-    Action='lambda:InvokeFunction',
-    Principal='events.amazonaws.com',
-    SourceArn=rule_arn
-  )
+  # # Add permission for the CloudWatch Events service to invoke your Lambda function
+  # lambda_client.add_permission(
+  #   FunctionName=lambda_function_name,
+  #   StatementId=f'{rule_name}-permission',
+  #   Action='lambda:InvokeFunction',
+  #   Principal='events.amazonaws.com',
+  #   SourceArn=rule_arn
+  # )
 
   print(f"Trigger set up to invoke Lambda function '{lambda_function_name}' every minute.")
 
+def cancel_trigger():
+  client = boto3.client('events')
+  # rule_name = "trigger_lambda_every_minute"
+  # Rule id will be user's email
+  rule_ids = ["1"]
 
-    
+  try:
+    client.remove_targets(Rule=rule_name, Ids=rule_ids)
+    # client.delete_rule(Name=rule_name)
+  except:
+    print("Error cancelling reservation monitoring")
 
 test()
+# cancel_trigger()
