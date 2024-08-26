@@ -1,3 +1,5 @@
-A few days ago, I asked my dad about his favorite restaurant he had ever eaten at. Without hesitation, he immediately said the House of Prime Rib in San Francisco. Just like that, Rezzy was born. 
+My dad once told me his favorite restaurant in the world was House of Prime Rib in San Francisco, but it was nearly impossible to get a reservation. In response, I made Rezzy.
 
-Rezzy is a script using Selenium to automatically check if a reservation opens up for the House of Prime Rib during the few days my entire family will be visting in the Bay Area. It is hosted on AWS Lambda using Docker.
+Rezzy is a Selenium script that automatically notifies the user if a spots opens up for a booked-out reservation. It is containerized using Docker and hosted on AWS Lambda.
+
+Although the project is functional, it is still a work-in-progress, so please excuse some messy code and incomplete work-in-progress features!
