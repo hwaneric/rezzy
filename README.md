@@ -3,3 +3,5 @@ My dad once told me his favorite restaurant in the world was House of Prime Rib 
 Rezzy is a Selenium script that automatically notifies the user if a spots opens up for a booked-out reservation. It is containerized using Docker and hosted on AWS Lambda.
 
 Although the project is functional, it is still a work-in-progress.
+
+Check out the deployed frontend at: https://make-rezzy.vercel.app/login
